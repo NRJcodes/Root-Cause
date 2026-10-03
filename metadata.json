@@ -1,0 +1,6 @@
+{
+  "name": "RootCause AI",
+  "description": "A structured business diagnostic tool that helps operations, finance, and strategy leaders separate symptoms from root causes before recommending solutions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
