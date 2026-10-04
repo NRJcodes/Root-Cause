@@ -1,0 +1,16 @@
+[
+  {
+    "id": "user_demo_enterprise",
+    "email": "demo@enterprise.com",
+    "name": "Demo Investigator",
+    "password": "$2b$12$WpVSfPY2UxYAAEkA2M9fAe/sFXPV0xa4GITONnSwdzE3SylBWQG/u",
+    "createdAt": "2026-10-04T00:00:00.000Z"
+  },
+  {
+    "id": "user_1791089472089_s1q9plsv9m",
+    "email": "testadmin@company.com",
+    "name": "Test Admin",
+    "password": "$2b$12$BAKHOe48qzjqfkyROxjYau/Bi5Sd/aXg/ZxsxizvjNwjbLOC5T/32",
+    "createdAt": "2026-10-04T04:51:12.090Z"
+  }
+]

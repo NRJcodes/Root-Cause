@@ -14,11 +14,13 @@ import { Stage5Recommendation } from './components/stages/Stage5Recommendation';
 import { Stage6Export } from './components/stages/Stage6Export';
 import { AuthModal } from './components/AuthModal';
 import { SessionsDrawer } from './components/SessionsDrawer';
+import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
 import { InvestigationSession, User, ClarifyingQuestion } from './types';
 import { SAMPLE_BENCHMARKS } from './utils/sampleData';
 import { AlertCircle, X } from 'lucide-react';
 
 const STORAGE_KEY_USER = 'rootcause_user';
+const STORAGE_KEY_TOKEN = 'rootcause_token';
 const STORAGE_KEY_SESSION_ID = 'rootcause_current_session_id';
 
 function createNewSession(userId?: string): InvestigationSession {
@@ -85,6 +87,7 @@ export default function App() {
   const [allSessions, setAllSessions] = useState<InvestigationSession[]>([]);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
+  const [isKnowledgeBaseOpen, setIsKnowledgeBaseOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -94,22 +97,28 @@ export default function App() {
   const [isLoadingSolutions, setIsLoadingSolutions] = useState(false);
   const [isLoadingRecommendation, setIsLoadingRecommendation] = useState(false);
 
-  // Load user sessions from backend or local storage
-  const loadSessions = useCallback(async (userId?: string) => {
+  // Load user sessions from backend
+  const loadSessions = useCallback(async () => {
     try {
-      const uId = userId || user?.id || 'anonymous';
-      const res = await fetch(`/api/sessions?userId=${uId}`);
+      const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+      if (!token) {
+        setAllSessions([]);
+        return;
+      }
+      const res = await fetch('/api/sessions', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (res.ok) {
         const data = await res.json();
-        if (data.sessions && Array.isArray(data.sessions)) {
-          setAllSessions(data.sessions);
-          return;
-        }
+        const list = Array.isArray(data) ? data : data.sessions || [];
+        setAllSessions(list);
       }
     } catch (err) {
       console.warn('Could not load sessions from backend:', err);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     loadSessions();
@@ -120,9 +129,13 @@ export default function App() {
     async (sessionToSave: InvestigationSession) => {
       setIsSaving(true);
       try {
+        const token = localStorage.getItem(STORAGE_KEY_TOKEN);
         await fetch('/api/sessions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify(sessionToSave),
         });
         setAllSessions((prev) => {
@@ -228,10 +241,12 @@ export default function App() {
 
       const data = await res.json();
       const breakdown = data.breakdown || {};
+      const similarCases = data.similarCases || [];
 
       updateCurrentSession((prev) => ({
         ...prev,
         currentStage: 3,
+        similarCases,
         clarifying: {
           ...prev.clarifying,
           isSubmitted: true,
@@ -365,7 +380,13 @@ export default function App() {
   // Delete an investigation
   const handleDeleteSession = async (id: string) => {
     try {
-      await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+      await fetch(`/api/sessions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
       setAllSessions((prev) => prev.filter((s) => s.id !== id));
       if (currentSession.id === id) {
         handleNewSession();
@@ -387,12 +408,15 @@ export default function App() {
   const handleAuthSuccess = (authenticatedUser: User, token: string) => {
     setUser(authenticatedUser);
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(authenticatedUser));
-    loadSessions(authenticatedUser.id);
+    localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    loadSessions();
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY_USER);
+    localStorage.removeItem(STORAGE_KEY_TOKEN);
+    setAllSessions([]);
   };
 
   return (
@@ -404,6 +428,7 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
         onOpenSessions={() => setIsSessionsOpen(true)}
+        onOpenKnowledgeBase={() => setIsKnowledgeBaseOpen(true)}
         onNewSession={handleNewSession}
         onLoadBenchmark={handleLoadBenchmark}
         onUpdateTitle={(title) => updateCurrentSession((prev) => ({ ...prev, title }))}
@@ -521,6 +546,12 @@ export default function App() {
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
         onDeleteSession={handleDeleteSession}
+      />
+
+      {/* Institutional Knowledge Base Modal */}
+      <KnowledgeBaseModal
+        isOpen={isKnowledgeBaseOpen}
+        onClose={() => setIsKnowledgeBaseOpen(false)}
       />
     </div>
   );

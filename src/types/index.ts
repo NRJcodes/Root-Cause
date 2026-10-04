@@ -86,6 +86,18 @@ export interface IntakeData {
   documents: UploadedDoc[];
 }
 
+export interface KnowledgeBaseCase {
+  id: string;
+  category: string;
+  summary: string;
+  rootCauses: string;
+  solutions?: string;
+  rating: number;
+  similarity?: number;
+  createdAt: string;
+  sessionId?: string;
+}
+
 export interface InvestigationSession {
   id: string;
   userId: string;
@@ -93,6 +105,10 @@ export interface InvestigationSession {
   createdAt: string;
   updatedAt: string;
   currentStage: number; // 1 to 6
+  rating?: number;
+  feedback?: string;
+  savedToKnowledgeBase?: boolean;
+  similarCases?: KnowledgeBaseCase[];
   intake: IntakeData;
   clarifying: {
     questions: ClarifyingQuestion[];

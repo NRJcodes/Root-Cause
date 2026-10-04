@@ -13,6 +13,7 @@ import {
   Download,
 } from 'lucide-react';
 import { InvestigationSession } from '../../types';
+import { RatingCard } from '../RatingCard';
 
 interface Stage5RecommendationProps {
   session: InvestigationSession;
@@ -171,6 +172,11 @@ export const Stage5Recommendation: React.FC<Stage5RecommendationProps> = ({
             </ul>
           </div>
         )}
+
+        {/* Rating & Institutional Memory Contribution */}
+        <div className="pt-2">
+          <RatingCard session={session} />
+        </div>
       </div>
 
       {/* Navigation Footer */}

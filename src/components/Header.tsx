@@ -9,6 +9,7 @@ import {
   LogOut,
   Layers,
   ChevronDown,
+  BookOpen,
 } from 'lucide-react';
 import { User, InvestigationSession } from '../types';
 import { SAMPLE_BENCHMARKS } from '../utils/sampleData';
@@ -19,6 +20,7 @@ interface HeaderProps {
   onOpenAuth: () => void;
   onLogout: () => void;
   onOpenSessions: () => void;
+  onOpenKnowledgeBase: () => void;
   onNewSession: () => void;
   onLoadBenchmark: (benchmarkId: string) => void;
   onUpdateTitle: (newTitle: string) => void;
@@ -31,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onLogout,
   onOpenSessions,
+  onOpenKnowledgeBase,
   onNewSession,
   onLoadBenchmark,
   onUpdateTitle,
@@ -162,6 +165,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
               <span className="hidden sm:inline">Investigations</span>
+            </button>
+
+            {/* Knowledge Base Modal */}
+            <button
+              onClick={onOpenKnowledgeBase}
+              className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 px-2.5 py-1.5 rounded-md font-medium transition"
+              title="View verified institutional knowledge base"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden md:inline">Knowledge Base</span>
             </button>
 
             {/* User profile / login */}

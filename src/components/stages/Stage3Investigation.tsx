@@ -189,6 +189,48 @@ export const Stage3Investigation: React.FC<Stage3InvestigationProps> = ({
         </div>
       )}
 
+      {/* Institutional Knowledge Vector Matches */}
+      {session.similarCases && session.similarCases.length > 0 && (
+        <div className="mb-6 bg-slate-900 text-white border border-slate-800 rounded-xl p-4.5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Institutional Knowledge Base Reference Patterns ({session.similarCases.length} Matched)
+              </span>
+            </div>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded border border-indigo-400/30">
+              Vector Cosine Similarity &gt; 35%
+            </span>
+          </div>
+          <p className="text-xs text-slate-300 mb-3 leading-relaxed">
+            Gemini vector search cross-referenced these historical high-rated investigations as reference patterns while analyzing this problem strictly on its own evidence:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {session.similarCases.map((sc, idx) => (
+              <div key={sc.id || idx} className="bg-slate-800/90 p-3 rounded-lg border border-slate-700 text-xs flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-indigo-300 bg-indigo-900/50 border border-indigo-700/50 px-1.5 py-0.5 rounded uppercase">
+                    {sc.category}
+                  </span>
+                  {sc.similarity && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {Math.round(sc.similarity * 100)}% Match
+                    </span>
+                  )}
+                </div>
+                <div className="font-medium text-slate-200 line-clamp-2">
+                  {sc.summary}
+                </div>
+                <div className="text-[11px] text-slate-400 border-t border-slate-700/60 pt-1.5 mt-0.5">
+                  <span className="font-semibold text-emerald-400">Root cause found:</span> {sc.rootCauses}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ROOT SYMPTOM CARD (Top Node in Tree) */}
       <div className="mb-8">
         <div className="relative p-5 bg-slate-900 text-white rounded-xl shadow-md border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
