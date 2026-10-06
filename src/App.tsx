@@ -120,8 +120,37 @@ export default function App() {
     }
   }, []);
 
+  const getAuthHeaders = useCallback((): Record<string, string> => {
+    const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }, []);
+
   useEffect(() => {
-    loadSessions();
+    const existingToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+    if (!existingToken) {
+      // Auto-authenticate with the real demo account so user has an active signed JWT
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'demo@enterprise.com', password: 'enterprise123' }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.token && data.user) {
+            localStorage.setItem(STORAGE_KEY_TOKEN, data.token);
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+            setUser(data.user);
+            loadSessions();
+          }
+        })
+        .catch(() => {});
+    } else {
+      loadSessions();
+    }
   }, [loadSessions]);
 
   // Persist session changes to backend
@@ -177,7 +206,7 @@ export default function App() {
 
       const res = await fetch('/api/ai/clarifying-questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           category: currentSession.intake.category,
           description: currentSession.intake.description,
@@ -186,6 +215,10 @@ export default function App() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setIsAuthOpen(true);
+          throw new Error('Authentication required. Please sign in or register to run AI investigations.');
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to generate clarifying questions');
       }
@@ -225,7 +258,7 @@ export default function App() {
 
       const res = await fetch('/api/ai/investigate-root-causes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           category: currentSession.intake.category,
           description: currentSession.intake.description,
@@ -235,6 +268,10 @@ export default function App() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setIsAuthOpen(true);
+          throw new Error('Authentication required. Please sign in or register to run AI investigations.');
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to conduct root-cause investigation');
       }
@@ -278,7 +315,7 @@ export default function App() {
 
       const res = await fetch('/api/ai/generate-solutions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           symptom: currentSession.investigation.symptom || currentSession.intake.description,
           confirmedAndLikelyCauses,
@@ -287,6 +324,10 @@ export default function App() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setIsAuthOpen(true);
+          throw new Error('Authentication required. Please sign in or register to run AI investigations.');
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to generate solutions matrix');
       }
@@ -317,13 +358,17 @@ export default function App() {
     try {
       const res = await fetch('/api/ai/generate-recommendation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           session: currentSession,
         }),
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setIsAuthOpen(true);
+          throw new Error('Authentication required. Please sign in or register to run AI investigations.');
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to synthesize recommendation');
       }

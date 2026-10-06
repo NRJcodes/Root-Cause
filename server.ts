@@ -328,6 +328,16 @@ app.get('/api/auth/me', (req: Request, res: Response) => {
 });
 
 // Document upload & parsing
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/json',
+  'text/markdown',
+  'text/x-markdown',
+];
+const ALLOWED_EXTENSIONS = ['.pdf', '.txt', '.csv', '.json', '.md'];
+
 app.post('/api/upload', upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
@@ -335,6 +345,17 @@ app.post('/api/upload', upload.single('file'), async (req: Request, res: Respons
     }
 
     const { originalname, mimetype, size, buffer } = req.file;
+
+    const ext = path.extname(originalname || '').toLowerCase();
+    const isAllowedMime = ALLOWED_MIME_TYPES.includes(mimetype);
+    const isAllowedExt = ALLOWED_EXTENSIONS.includes(ext);
+
+    if (!isAllowedMime && !isAllowedExt) {
+      return res.status(400).json({
+        error: 'Invalid file type. Only PDF, TXT, CSV, JSON, and Markdown files are supported.',
+      });
+    }
+
     let extractedText = '';
 
     if (mimetype === 'application/pdf' || originalname.endsWith('.pdf')) {
@@ -389,27 +410,24 @@ app.get('/api/sessions/:id', requireAuth, (req: Request, res: Response) => {
   res.json(session);
 });
 
-app.post('/api/sessions', (req: Request, res: Response) => {
+app.post('/api/sessions', requireAuth, (req: Request, res: Response) => {
   const sessionData = req.body;
   if (!sessionData || !sessionData.id) {
     return res.status(400).json({ error: 'Invalid session data' });
   }
 
-  // If token is provided, assign authenticated userId
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.split(' ')[1];
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
-      sessionData.userId = decoded.userId;
-    } catch {
-      // ignore
-    }
-  }
-
+  const userId = (req as any).userId;
   const allSessions = readSessions();
   const index = allSessions.findIndex((s) => s.id === sessionData.id);
 
+  if (index >= 0) {
+    if (allSessions[index].userId && allSessions[index].userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to modify this session' });
+    }
+  }
+
+  // Always set the session's userId from req.userId server-side — never trust body userId
+  sessionData.userId = userId;
   sessionData.updatedAt = new Date().toISOString();
 
   if (index >= 0) {
@@ -424,10 +442,11 @@ app.post('/api/sessions', (req: Request, res: Response) => {
 });
 
 // Rate an investigation session (1-5 stars) and auto-save high-rated cases to Knowledge Base
-app.post('/api/sessions/:id/rate', async (req: Request, res: Response) => {
+app.post('/api/sessions/:id/rate', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { rating, feedback } = req.body;
+    const userId = (req as any).userId;
 
     const numRating = Math.max(1, Math.min(5, Number(rating) || 5));
     const allSessions = readSessions();
@@ -438,6 +457,10 @@ app.post('/api/sessions/:id/rate', async (req: Request, res: Response) => {
     }
 
     const session = allSessions[index];
+    if (session.userId && session.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to rate this session' });
+    }
+
     session.rating = numRating;
     session.feedback = feedback || '';
     session.updatedAt = new Date().toISOString();
@@ -494,7 +517,7 @@ app.get('/api/knowledge-base', (_req: Request, res: Response) => {
 });
 
 // Knowledge Base: Explicitly save investigation to Knowledge Base
-app.post('/api/knowledge-base/save', async (req: Request, res: Response) => {
+app.post('/api/knowledge-base/save', requireAuth, async (req: Request, res: Response) => {
   try {
     const { category, problemSummary, rootCauses, solutions, userRating, sessionId } = req.body;
     if (!problemSummary || !rootCauses) {
@@ -519,7 +542,7 @@ app.post('/api/knowledge-base/save', async (req: Request, res: Response) => {
 });
 
 // AI: Search relevant past cases using vector similarity
-app.post('/api/ai/relevant-cases', async (req: Request, res: Response) => {
+app.post('/api/ai/relevant-cases', requireAuth, async (req: Request, res: Response) => {
   try {
     const { problemText } = req.body;
     if (!problemText) return res.json({ cases: [] });
@@ -544,7 +567,7 @@ app.delete('/api/sessions/:id', requireAuth, (req: Request, res: Response) => {
 });
 
 // Stage 2: Clarifying Questions Generation
-app.post('/api/ai/clarifying-questions', async (req: Request, res: Response) => {
+app.post('/api/ai/clarifying-questions', requireAuth, async (req: Request, res: Response) => {
   try {
     const { category, description, documentsText } = req.body;
 
@@ -604,8 +627,13 @@ Do NOT offer solutions or conclusions yet. Ask precise, business-appropriate que
       },
     });
 
-    const text = response.text || '[]';
-    const questions = JSON.parse(text);
+    let questions;
+    try {
+      questions = JSON.parse(response.text || '[]');
+    } catch (parseErr) {
+      console.error('Clarifying questions JSON parse error:', parseErr, response.text);
+      return res.status(502).json({ error: 'The AI returned an unexpected response. Please try again.' });
+    }
 
     return res.json({ questions });
   } catch (err: any) {
@@ -615,7 +643,7 @@ Do NOT offer solutions or conclusions yet. Ask precise, business-appropriate que
 });
 
 // Stage 3: Root Cause Tree Investigation
-app.post('/api/ai/investigate-root-causes', async (req: Request, res: Response) => {
+app.post('/api/ai/investigate-root-causes', requireAuth, async (req: Request, res: Response) => {
   try {
     const { category, description, documentsText, clarifyingQA } = req.body;
 
@@ -731,8 +759,13 @@ STRICT ANALYTICAL RULES:
       },
     });
 
-    const text = response.text || '{}';
-    const breakdown = JSON.parse(text);
+    let breakdown;
+    try {
+      breakdown = JSON.parse(response.text || '{}');
+    } catch (parseErr) {
+      console.error('Investigate root causes JSON parse error:', parseErr, response.text);
+      return res.status(502).json({ error: 'The AI returned an unexpected response. Please try again.' });
+    }
     const sanitizedSimilarCases = similarCases.map(({ embedding, ...rest }: any) => rest);
 
     return res.json({ breakdown, similarCases: sanitizedSimilarCases });
@@ -743,7 +776,7 @@ STRICT ANALYTICAL RULES:
 });
 
 // Stage 4: Solutions Comparison Generation
-app.post('/api/ai/generate-solutions', async (req: Request, res: Response) => {
+app.post('/api/ai/generate-solutions', requireAuth, async (req: Request, res: Response) => {
   try {
     const { symptom, confirmedAndLikelyCauses, contextSummary } = req.body;
 
@@ -819,8 +852,13 @@ Provide a comparative matrix structure with:
       },
     });
 
-    const text = response.text || '[]';
-    const solutions = JSON.parse(text);
+    let solutions;
+    try {
+      solutions = JSON.parse(response.text || '[]');
+    } catch (parseErr) {
+      console.error('Solutions generation JSON parse error:', parseErr, response.text);
+      return res.status(502).json({ error: 'The AI returned an unexpected response. Please try again.' });
+    }
 
     return res.json({ solutions });
   } catch (err: any) {
@@ -830,7 +868,7 @@ Provide a comparative matrix structure with:
 });
 
 // Stage 5: Final Recommendation Generation
-app.post('/api/ai/generate-recommendation', async (req: Request, res: Response) => {
+app.post('/api/ai/generate-recommendation', requireAuth, async (req: Request, res: Response) => {
   try {
     const { session } = req.body;
 
@@ -904,8 +942,13 @@ Provide a clear, decisive final recommendation:
       },
     });
 
-    const text = response.text || '{}';
-    const recommendation = JSON.parse(text);
+    let recommendation;
+    try {
+      recommendation = JSON.parse(response.text || '{}');
+    } catch (parseErr) {
+      console.error('Recommendation generation JSON parse error:', parseErr, response.text);
+      return res.status(502).json({ error: 'The AI returned an unexpected response. Please try again.' });
+    }
 
     // Enforce the exact disclaimer phrasing if model deviated
     recommendation.disclaimer =

@@ -88,7 +88,9 @@ export const Stage1Intake: React.FC<Stage1IntakeProps> = ({
         });
 
         if (!res.ok) {
-          throw new Error(`Upload failed with status ${res.status}`);
+          const errData = await res.json().catch(() => ({}));
+          setUploadError(errData.error || `Upload failed with status ${res.status}`);
+          continue;
         }
 
         const data = await res.json();
@@ -97,20 +99,7 @@ export const Stage1Intake: React.FC<Stage1IntakeProps> = ({
         }
       } catch (err: any) {
         console.error('File upload error:', err);
-        // Fallback client-side reader for text files
-        try {
-          const text = await file.text();
-          newDocs.push({
-            id: `doc_local_${Date.now()}_${i}`,
-            name: file.name,
-            size: file.size,
-            type: file.type || 'text/plain',
-            textContent: text.slice(0, 50000),
-            uploadedAt: new Date().toISOString(),
-          });
-        } catch (textErr) {
-          setUploadError(`Failed to process "${file.name}": ${err.message}`);
-        }
+        setUploadError(err.message || 'File upload failed');
       }
     }
 
